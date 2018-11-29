@@ -1,0 +1,232 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: VPC (Public and Private Subnets, IGW, NatGW, Route Tables)[Assignment]
+
+Parameters:
+  Environment:
+    Type: String
+  ServiceNamePrefix:
+    Type: String
+  LogsBucketName:
+    Type: String
+
+Mappings:
+  ConfigMap:
+    VPC:
+      CIDR: 10.0.0.0/16
+
+    PublicSubnetA:
+      CIDR: 10.0.1.0/24
+    PublicSubnetB:
+      CIDR: 10.0.2.0/24
+    PublicSubnetC:
+      CIDR: 10.0.3.0/24
+
+    PrivateSubnetA:
+      CIDR: 10.0.11.0/24
+    PrivateSubnetB:
+      CIDR: 10.0.12.0/24
+    PrivateSubnetC:
+      CIDR: 10.0.13.0/24
+
+Resources:
+  # VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock:          !FindInMap [ConfigMap, VPC, CIDR]
+      EnableDnsSupport:   true
+      EnableDnsHostnames: true
+      InstanceTenancy:    default
+      Tags:
+        - Key:   Name
+          Value: !Ref ServiceNamePrefix
+
+  # IGW
+  PublicInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key:   Name
+          Value: !Sub "${ServiceNamePrefix}-igw"
+
+  PublicVPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:             !Ref VPC
+      InternetGatewayId: !Ref PublicInternetGateway
+
+  ### Public Subnets
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:               !Ref VPC
+      CidrBlock:           !FindInMap [ConfigMap, PublicSubnetA, CIDR]
+      MapPublicIpOnLaunch: true
+      AvailabilityZone:    !Select [0, { "Fn::GetAZs" : "" } ]
+      Tags:
+        - Key:   Name
+          Value: !Sub "${ServiceNamePrefix}-public-subnet-a"
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:               !Ref VPC
+      CidrBlock:           !FindInMap [ConfigMap, PublicSubnetB, CIDR]
+      MapPublicIpOnLaunch: true
+      AvailabilityZone:    !Select [1, { "Fn::GetAZs" : "" } ]
+      Tags:
+        - Key:   Name
+          Value: !Sub "${ServiceNamePrefix}-public-subnet-b"
+
+  PublicSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:               !Ref VPC
+      CidrBlock:           !FindInMap [ConfigMap, PublicSubnetC, CIDR]
+      MapPublicIpOnLaunch: true
+      AvailabilityZone:    !Select [2, { "Fn::GetAZs" : "" } ]
+      Tags:
+        - Key:   Name
+          Value: !Sub "${ServiceNamePrefix}-public-subnet-c"
+
+  ### Private Subnets
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:            !Ref VPC
+      CidrBlock:        !FindInMap [ConfigMap, PrivateSubnetA, CIDR]
+      AvailabilityZone: !Select    [0, { "Fn::GetAZs" : "" } ]
+      Tags:
+        - Key:   Name
+          Value: !Sub "${ServiceNamePrefix}-private-subnet-a"
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:            !Ref VPC
+      CidrBlock:        !FindInMap [ConfigMap, PrivateSubnetB, CIDR]
+      AvailabilityZone: !Select    [1, { "Fn::GetAZs" : "" } ]
+      Tags:
+        - Key:   Name
+          Value: !Sub "${ServiceNamePrefix}-private-subnet-b"
+
+  PrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:            !Ref VPC
+      CidrBlock:        !FindInMap [ConfigMap, PrivateSubnetC, CIDR]
+      AvailabilityZone: !Select    [2, { "Fn::GetAZs" : "" } ]
+      Tags:
+        - Key:   Name
+          Value: !Sub "${ServiceNamePrefix}-private-subnet-c"
+
+  # Public Route Table
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key:   Name
+          Value: !Sub "${ServiceNamePrefix}-public-routes"
+
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId:     !Ref PublicSubnetA
+
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId:     !Ref PublicSubnetB
+
+  PublicSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId:     !Ref PublicSubnetC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:         !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:            !Ref PublicInternetGateway
+
+  ### Private Route Table
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+      Tags:
+        - Key:   Name
+          Value: !Sub "${ServiceNamePrefix}-private-routes"
+
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId:     !Ref PrivateSubnetA
+
+  PrivateSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId:     !Ref PrivateSubnetB
+
+  PrivateSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId:     !Ref PrivateSubnetC
+
+  ### Nat Gateway suff
+  NatGwElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatInternetGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGwElasticIp.AllocationId
+      SubnetId:     !Ref PublicSubnetA
+      Tags:
+        - Key:    Name
+          Value:  !Sub "${ServiceNamePrefix}-NatGateway"
+
+  NatGWRoutes:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:           !Ref PrivateRouteTable
+      DestinationCidrBlock:   0.0.0.0/0
+      NatGatewayId:           !Ref NatInternetGateway
+
+# ------
+Outputs:
+  VpcId:
+    Value: !Ref VPC
+
+  CidrBlock:
+    Value: !GetAtt VPC.CidrBlock
+
+  PublicRouteTableId:
+    Value: !Ref PublicRouteTable
+  PrivateRouteTableId:
+    Value: !Ref PrivateRouteTable
+
+  PublicSubnetAId:
+    Value: !Ref PublicSubnetA
+  PublicSubnetBId:
+    Value: !Ref PublicSubnetB
+  PublicSubnetCId:
+    Value: !Ref PublicSubnetC
+
+  PrivateSubnetAId:
+    Value: !Ref PrivateSubnetA
+  PrivateSubnetBId:
+    Value: !Ref PrivateSubnetB
+  PrivateSubnetCId:
+    Value: !Ref PrivateSubnetC

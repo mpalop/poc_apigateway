@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Api Gateway Stack
+Parameters:
+  Environment:
+    Type: String
+  ServiceNamePrefix:
+    Type: String
+  SortLambdaArn:
+    Type: String
+  StatisticsLambdaArn:
+    Type: String
+
+Conditions:
+  OnProduction:  !Equals [!Ref Environment, Production]
+  OnDevelopment: !Equals [!Ref Environment, Development]
+
+Resources:
+
+  ApiGwSortLambdaGrants:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action:       "lambda:invokeFunction"
+      FunctionName: !Ref SortLambdaArn
+      Principal:    apigateway.amazonaws.com
+      SourceArn:    !Sub
+        - "arn:aws:execute-api:${region}:${account}:${api}/*/POST/sort"
+        - { region:   !Ref "AWS::Region",
+            account:  !Ref "AWS::AccountId",
+            api:      !Ref RestApi}
+
+  ApiGwStatisticsLambdaGrants:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action:       "lambda:invokeFunction"
+      FunctionName: !Ref StatisticsLambdaArn
+      Principal:    apigateway.amazonaws.com
+      SourceArn:    !Sub
+        - "arn:aws:execute-api:${region}:${account}:${api}/*/POST/statistics"
+        - { region:   !Ref "AWS::Region",
+            account:  !Ref "AWS::AccountId",
+            api:      !Ref RestApi}
+
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name:           !Sub "ohpen-assignment-${Environment}"
+      Description:    API to interact with Assignment Lambda
+      FailOnWarnings: true
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  ApiResourceSort:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:   !GetAtt RestApi.RootResourceId
+      PathPart:   sort
+      RestApiId:  !Ref RestApi
+
+  ApiResourceStatistics:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId:   !GetAtt RestApi.RootResourceId
+      PathPart:   statistics
+      RestApiId:  !Ref RestApi
+
+  SortMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod:         POST
+      AuthorizationType:  NONE
+      ResourceId:         !Ref ApiResourceSort
+      RestApiId:          !Ref RestApi
+      Integration:
+        Type: AWS
+        Uri:  !Sub
+          - "arn:aws:apigateway:${region}:lambda:path/2015-03-31/functions/${lambda_arn}/invocations"
+          - { region:     !Ref "AWS::Region",
+              lambda_arn: !Ref SortLambdaArn}
+        IntegrationHttpMethod: "POST"
+        IntegrationResponses:
+          - StatusCode:         200
+      MethodResponses:
+        - StatusCode:           200
+          ResponseModels:
+            "application/json": Empty
+
+
+  StatisticsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod:         POST
+      AuthorizationType:  NONE
+      ResourceId:         !Ref ApiResourceStatistics
+      RestApiId:          !Ref RestApi
+      Integration:
+        Type: AWS
+        Uri:  !Sub
+          - "arn:aws:apigateway:${region}:lambda:path/2015-03-31/functions/${lambda_arn}/invocations"
+          - { region:     !Ref "AWS::Region",
+              lambda_arn: !Ref StatisticsLambdaArn}
+        IntegrationHttpMethod: "POST"
+        IntegrationResponses:
+          - StatusCode:         200
+      MethodResponses:
+        - StatusCode:           200
+          ResponseModels:
+            "application/json": Empty
+
+  ApiGwDeployment:
+    Type:       AWS::ApiGateway::Deployment
+    Properties:
+      Description:      !Sub "${Environment} Environment"
+      RestApiId:        !Ref RestApi
+      StageName:        !Ref Environment
+      StageDescription:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit:  10
+    DependsOn:
+      - SortMethod
+      - StatisticsMethod
+
+  RestrictUsage:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      UsagePlanName:  demo-ohpen
+      Quota:
+        Limit:      1000
+        Period:     DAY
+      Throttle:
+        BurstLimit: 50
+        RateLimit:  10
+
+#  ApiGwLoggingGrants:
+#    Type: AWS::ApiGateway::Account
+#    Properties:
+#      CloudWatchRoleArn:
+#    DependsOn:
+#      - RestApi

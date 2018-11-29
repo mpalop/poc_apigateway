@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Main File
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues:
+      - Production
+      - Development
+
+Mappings:
+  ConfigMap:
+    Production:
+      LogsBucket: "mpalop-ohpen-logs"
+    Development:
+      LogsBucket: "mpalop-ohpen-logs"
+
+Conditions:
+  OnProduction:  !Equals [!Ref Environment, Production]
+  OnDevelopment: !Equals [!Ref Environment, Development]
+
+Resources:
+
+# VPC Stack
+  VpcStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        Environment:           !Ref Environment
+        ServiceNamePrefix:     !Ref AWS::StackName
+        LogsBucketName:        !FindInMap [ConfigMap, !Ref Environment, LogsBucket]
+
+      TemplateURL: vpc.yaml
+      TimeoutInMinutes: 5
+      Tags:
+        - Key:   Environment
+          Value: !Ref Environment
+
+## Persistence Stack
+  PersistenceStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        Environment:           !Ref Environment
+        ServiceNamePrefix:     !Ref AWS::StackName
+        LogsBucketName:        !FindInMap [ConfigMap, !Ref Environment, LogsBucket]
+        VpcId:                 !GetAtt VpcStack.Outputs.VpcId
+        RedisSubnetIds:        !Sub
+          - "${a},${b},${c}"
+          - { a: !GetAtt VpcStack.Outputs.PrivateSubnetAId,
+              b: !GetAtt VpcStack.Outputs.PrivateSubnetBId,
+              c: !GetAtt VpcStack.Outputs.PrivateSubnetCId}
+
+      TemplateURL: persistence.yaml
+      TimeoutInMinutes: 15
+      Tags:
+        - Key:   Environment
+          Value: !Ref Environment
+
+
+### Lambda Stack
+  LambdaStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        Environment:          !Ref Environment
+        ServiceNamePrefix:    !Ref AWS::StackName
+
+        VpcId:                !GetAtt VpcStack.Outputs.VpcId
+        PrivateSubnetsIds:    !Sub
+          - "${a},${b},${c}"
+          - { a: !GetAtt VpcStack.Outputs.PrivateSubnetAId,
+              b: !GetAtt VpcStack.Outputs.PrivateSubnetBId,
+              c: !GetAtt VpcStack.Outputs.PrivateSubnetCId}
+
+
+        RedisEndpoint:        !GetAtt PersistenceStack.Outputs.PersistenceRedisEndpoint
+        PersistenceBucket:    !GetAtt PersistenceStack.Outputs.PersistenceS3BucketName
+
+      TemplateURL: lambdas.yaml
+      TimeoutInMinutes: 5
+      Tags:
+        - Key:   Environment
+          Value: !Ref Environment
+
+### Api Gateway Stack
+  ApiGwStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        Environment:          !Ref Environment
+        ServiceNamePrefix:    !Ref AWS::StackName
+        SortLambdaArn:        !GetAtt LambdaStack.Outputs.SortLambdaFunctionArn
+        StatisticsLambdaArn:  !GetAtt LambdaStack.Outputs.StatisticsLambdaFunctionArn
+
+      TemplateURL: api-gateway.yaml
+      TimeoutInMinutes: 5
+      Tags:
+        - Key:   Environment
+          Value: !Ref Environment
+
+
+# ------
+
+Outputs:
+  PersistenceS3BucketName:
+    Value: !GetAtt PersistenceStack.Outputs.PersistenceS3BucketName
+
+  PersistenceRedisEndpoint:
+    Value: !GetAtt PersistenceStack.Outputs.PersistenceRedisEndpoint

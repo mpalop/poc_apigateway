@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lambda Function - Ohpen test
+
+Parameters:
+  Environment:
+    Type: String
+  ServiceNamePrefix:
+    Type: String
+
+  VpcId:
+    Type: String
+  PrivateSubnetsIds:
+    Type: String
+
+  RedisEndpoint:
+    Type: String
+  PersistenceBucket:
+    Type: String
+
+Mappings:
+  ConfigMap:
+    Pro:
+      LogsBucket:   "mpalop-ohpen-logs"
+    Dev:
+      LogsBucket:   "mpalop-ohpen-logs"
+
+Resources:
+
+  # Lambda Security Group
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:                !Ref VpcId
+      GroupDescription:     Lambda VPC security group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort:   0
+          ToPort:     65535
+          CidrIp:     10.0.0.0/8
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort:   -1
+          ToPort:     -1
+          CidrIp:     0.0.0.0/0
+
+  # IAM: Lambda Role
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: WritePersistenceBucket
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ListBucketFiles
+                Effect: "Allow"
+                Action:
+                - "S3:ListBucket"
+                Resource:
+                - !Sub "arn:aws:s3:::${PersistenceBucket}"
+              - Sid: AccessObjects
+                Effect: "Allow"
+                Action:
+                - "S3:GetObject"
+                - "S3:PutObject"
+                - "S3:DeleteObject"
+                Resource:
+                - !Sub "arn:aws:s3:::${PersistenceBucket}/*"
+
+  ### Lambda functions
+  SortFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ServiceNamePrefix}-sort-${Environment}"
+      Description:  Assignment function Sort
+      Handler:      "main.lambda_handler"
+      Role:         !GetAtt LambdaRole.Arn
+
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:  !Split [ ",", !Ref PrivateSubnetsIds]
+
+      Runtime:      python3.6
+      Code:         ./tmp/lambda.sort.zip
+      MemorySize:   128
+      Timeout:      60
+
+      Tags:
+        - Key:   Environment
+          Value: !Ref Environment
+
+      Environment:
+        Variables:
+          ENVIRONMENT:                 !Ref Environment
+          BUCKET_NAME:                 !Ref PersistenceBucket
+          REDIS_ENDPOINT:              !Ref RedisEndpoint
+
+  StatsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ServiceNamePrefix}-statistics-${Environment}"
+      Description:  Assignment function Statistics
+      Handler:      "main.lambda_handler"
+      Role:         !GetAtt LambdaRole.Arn
+
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:  !Split [ ",", !Ref PrivateSubnetsIds]
+
+      Runtime:      python3.6
+      Code:         ./tmp/lambda.statistics.zip
+      MemorySize:   128
+      Timeout:      60
+
+      Tags:
+        - Key:   Environment
+          Value: !Ref Environment
+
+      Environment:
+        Variables:
+          ENVIRONMENT:                 !Ref Environment
+          BUCKET_NAME:                 !Ref PersistenceBucket
+          REDIS_ENDPOINT:              !Ref RedisEndpoint
+
+
+# ------
+
+Outputs:
+
+  SortLambdaFunctionArn:
+    Value: !GetAtt SortFunction.Arn
+  StatisticsLambdaFunctionArn:
+    Value: !GetAtt StatsFunction.Arn
+
+  LambdaRoleName:
+    Value: !Ref LambdaRole
+  LambdaRoleIamArn:
+    Value: !GetAtt LambdaRole.Arn

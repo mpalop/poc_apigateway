@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Persistence Stack (S3, redis, IAM roles)
+
+Parameters:
+  Environment:
+    Type: String
+  ServiceNamePrefix:
+    Type: String
+  LogsBucketName:
+    Type: String
+
+  VpcId:
+    Type: String
+  RedisSubnetIds:
+    Type: String
+
+Conditions:
+  OnProduction:  !Equals [!Ref Environment, Production]
+  OnDevelopment: !Equals [!Ref Environment, Development]
+
+Mappings:
+  ConfigMap:
+    Production:
+      CacheNodeType:            cache.t2.micro
+      CacheParameterGroupName:  default.Redis4.0
+      BucketName:               mpalop-ohpen-production
+    Development:
+      CacheNodeType:            cache.t2.micro
+      CacheParameterGroupName:  default.Redis4.0
+      BucketName:               mpalop-ohpen-development
+
+Resources:
+
+  # Persistence bucket
+  PersistenceS3:
+    Type: AWS::S3::Bucket
+
+    Properties:
+      BucketName:               !FindInMap [ConfigMap, !Ref Environment, BucketName]
+
+      LifecycleConfiguration:
+        Rules:
+        - Id: !If [OnProduction, "90 days to IA, 1 year to Glacier and Delete after 2 years", "Delete after one week"]
+          Status: Enabled
+          ExpirationInDays:     !If [OnProduction, 730, 7]
+          Transitions:
+            Fn::If:
+              - OnProduction
+              - - TransitionInDays: 90
+                  StorageClass:     STANDARD_IA
+                - TransitionInDays: 365
+                  StorageClass:     GLACIER
+              - Ref: AWS::NoValue
+
+      LoggingConfiguration:
+        DestinationBucketName:  !Ref LogsBucketName
+        LogFilePrefix:          !Sub "${ServiceNamePrefix}-${Environment}/"
+
+  ### Persistence Redis stuff
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:                !Ref VpcId
+      GroupDescription:     Redis EC security group
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort:   6379
+          ToPort:     6379
+          CidrIp:     10.0.0.0/8  #FIXME: simplification to avoid circular references with lambda sg
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort:   -1
+          ToPort:     -1
+          CidrIp:     0.0.0.0/0
+
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description:  !Sub "Redis ${Environment} SubnetGroup"
+      SubnetIds:    !Split [ ",", !Ref RedisSubnetIds]
+
+  PersistenceRedis:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      AutoMinorVersionUpgrade:    true
+      CacheNodeType:              !FindInMap [ConfigMap, !Ref Environment, CacheNodeType]
+      CacheParameterGroupName:    !FindInMap [ConfigMap, !Ref Environment, CacheParameterGroupName]
+      CacheSubnetGroupName:       !Ref RedisSubnetGroup
+      Engine:                     Redis
+      EngineVersion:              4.0.10
+      NumCacheNodes:              1
+      PreferredMaintenanceWindow: "sun:05:00-sun:06:00"
+      VpcSecurityGroupIds:
+        - !Ref RedisSecurityGroup
+      Tags:
+        - Key:    Environment
+          Value:  !Ref Environment
+
+# -----------
+
+Outputs:
+
+  PersistenceS3BucketName:
+    Value: !Ref PersistenceS3
+
+  PersistenceS3BucketArn:
+    Value: !GetAtt PersistenceS3.Arn
+
+  PersistenceRedisSecurityGroupId:
+    Value: !Ref RedisSecurityGroup
+
+  PersistenceRedisEndpoint:
+    Value: !GetAtt PersistenceRedis.RedisEndpoint.Address
+
