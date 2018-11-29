@@ -1,9 +1,9 @@
 # POC Api gateway
 
-WIP
+**NOTE**: This is an WIP README
+This is the code I made for testing a api-gateway -> lambda (python) stack. The README now is just a mess. I will tidy it out.
 
-NOTE: remember to tell how to install redis package into lambdas 
-
+NOTE: remember to document how to install redis package into lambdas folders  
 pip3 install redis --prefix ./lambda-sort
 pip3 install redis --prefix ./lambda-statistics
 
