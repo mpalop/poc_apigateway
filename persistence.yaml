@@ -23,11 +23,11 @@ Mappings:
     Production:
       CacheNodeType:            cache.t2.micro
       CacheParameterGroupName:  default.Redis4.0
-      BucketName:               mpalop-ohpen-production
+      BucketName:               mpalop-test-production
     Development:
       CacheNodeType:            cache.t2.micro
       CacheParameterGroupName:  default.Redis4.0
-      BucketName:               mpalop-ohpen-development
+      BucketName:               mpalop-test-development
 
 Resources:
 
