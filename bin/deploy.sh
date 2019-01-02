@@ -22,12 +22,12 @@ else
     exit -1
 fi
 
-S3_CLOUDFORMATION_BUCKET="mpalop-ohpen-cloudformation"
-STACK_NAME="ohpen"
+S3_CLOUDFORMATION_BUCKET="mpalop-test-cloudformation"
+STACK_NAME="test"
 STACK_FILE="stack"
 STACK_PACKAGE_FILE="tmp/${STACK_FILE}.package"
 
-IAM_PROFILE="$1"             #ohpen
+IAM_PROFILE="$1"             #test
 
 STACK_PARAMS="ParameterKey=Environment,ParameterValue=${ENVIRONMENT}"
 STACK_TAGS="Key=Environment,Value=${ENVIRONMENT} "
