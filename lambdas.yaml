@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Lambda Function - Ohpen test
+Description: Lambda Function - test
 
 Parameters:
   Environment:
@@ -20,9 +20,9 @@ Parameters:
 Mappings:
   ConfigMap:
     Pro:
-      LogsBucket:   "mpalop-ohpen-logs"
+      LogsBucket:   "mpalop-test-logs"
     Dev:
-      LogsBucket:   "mpalop-ohpen-logs"
+      LogsBucket:   "mpalop-test-logs"
 
 Resources:
 
