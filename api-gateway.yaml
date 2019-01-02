@@ -43,7 +43,7 @@ Resources:
   RestApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name:           !Sub "ohpen-assignment-${Environment}"
+      Name:           !Sub "test-assignment-${Environment}"
       Description:    API to interact with Assignment Lambda
       FailOnWarnings: true
       EndpointConfiguration:
@@ -123,7 +123,7 @@ Resources:
   RestrictUsage:
     Type: AWS::ApiGateway::UsagePlan
     Properties:
-      UsagePlanName:  demo-ohpen
+      UsagePlanName:  demo
       Quota:
         Limit:      1000
         Period:     DAY
