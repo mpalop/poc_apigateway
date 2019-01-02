@@ -9,7 +9,7 @@ pip3 install redis --prefix ./lambda-statistics
 
 development environment), that accept an event like: 
 
-- ohpen-sort-Development (because I am in Development environment), that accept an event like: 
+- test-sort-Development (because I am in Development environment), that accept an event like: 
 ```json
 { "sortoption": "ASCENDING|DESCENDING|NOSORT", 
   "text": "free utf-8 text"
@@ -39,7 +39,7 @@ and returns a Json list of the words orderd, aside of the persistence:
  }
 ```
 
-- ohpen-statistics-Development (same reason). It accept events like: 
+- test-statistics-Development (same reason). It accept events like: 
 
 ```json
 { 
