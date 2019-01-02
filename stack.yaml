@@ -11,9 +11,9 @@ Parameters:
 Mappings:
   ConfigMap:
     Production:
-      LogsBucket: "mpalop-ohpen-logs"
+      LogsBucket: "mpalop-test-logs"
     Development:
-      LogsBucket: "mpalop-ohpen-logs"
+      LogsBucket: "mpalop-test-logs"
 
 Conditions:
   OnProduction:  !Equals [!Ref Environment, Production]
